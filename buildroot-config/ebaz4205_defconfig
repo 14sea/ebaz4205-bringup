@@ -1,0 +1,44 @@
+# Buildroot config for Ebang EBAZ4205 (Zynq-7010 miner control board).
+#
+# Targets the miner's existing NAND boot chain: original BOOT.BIN/FSBL/U-Boot
+# stays, only kernel + dtb + rootfs get replaced. rootfs is jffs2 to match the
+# miner's bootargs `rootfstype=jffs2` (so we don't have to touch the U-Boot env).
+
+# --- target arch ---
+BR2_arm=y
+BR2_cortex_a9=y
+BR2_ARM_ENABLE_NEON=y
+BR2_ARM_ENABLE_VFP=y
+
+# --- toolchain: prebuilt bootlin glibc (saves ~20 minutes vs building) ---
+BR2_TOOLCHAIN_EXTERNAL=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_ARMV7_EABIHF_GLIBC_STABLE=y
+
+# --- Linux kernel: Xilinx fork v6.12 LTS ---
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,Xilinx,linux-xlnx,xlnx_rebase_v6.12_LTS_merge_6.12.70)/xlnx_rebase_v6.12_LTS_merge_6.12.70.tar.gz"
+BR2_LINUX_KERNEL_DEFCONFIG="xilinx_zynq"
+BR2_LINUX_KERNEL_UIMAGE=y
+BR2_LINUX_KERNEL_UIMAGE_LOADADDR="0x8000"
+BR2_LINUX_KERNEL_DTS_SUPPORT=y
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="xilinx/zynq-ebaz4205"
+BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+
+# --- packages: minimal busybox + dropbear ssh + dhcp client ---
+BR2_PACKAGE_DROPBEAR=y
+BR2_PACKAGE_IFUPDOWN_SCRIPTS=y
+BR2_PACKAGE_DHCP=y
+BR2_PACKAGE_DHCP_CLIENT=y
+BR2_SYSTEM_DHCP="eth0"
+
+# --- FPGA bring-up: fpgautil drives /sys/class/fpga_manager/ for runtime PL reload ---
+BR2_PACKAGE_XILINX_FPGAUTIL=y
+
+# --- rootfs: jffs2 to match miner's bootcmd, sized for 64 MB nand-allrootfs ---
+BR2_TARGET_ROOTFS_JFFS2=y
+BR2_TARGET_ROOTFS_JFFS2_NANDFLASH_2K_128K=y
+# don't pad jffs2 — write only actual size to NAND, jffs2 expands at runtime
+# don't build the legacy tar/ext images — saves time
+# BR2_TARGET_ROOTFS_TAR is not set

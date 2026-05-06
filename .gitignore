@@ -1,0 +1,26 @@
+# Heavy / generated trees
+build/
+.env/
+
+# Workspace-private state
+.claude/
+
+# Hardware backup pulled from board (proprietary BOOT.BIN, PL bitstream)
+backup/
+
+# Vendor reference docs (kept locally, not redistributed)
+references/
+img/
+*.pdf
+*.pcb
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
