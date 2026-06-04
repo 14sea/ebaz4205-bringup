@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-shot UART interaction over /dev/ttyUSB0.
+"""One-shot UART interaction over /dev/ebaz-uart.
 
 Usage:
   uart-poke.py [--send <bytes>] [--wait <secs>] [--port <dev>] [--baud <n>]

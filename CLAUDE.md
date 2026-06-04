@@ -57,7 +57,7 @@ openocd -f ebaz4205.cfg \
   -c "shutdown"
 wait
 ```
-Look for `[*** U-Boot prompt detected ***]`. Leaves `zynq-uboot>` waiting for input on `/dev/ttyUSB0`.
+Look for `[*** U-Boot prompt detected ***]`. Leaves `zynq-uboot>` waiting for input on `/dev/ebaz-uart`.
 
 **Build kernel + rootfs**:
 ```bash
@@ -105,7 +105,7 @@ python3 -c "d=open('backup/boot.bin','rb').read(); open('backup/top.bit','wb').w
 
 - **`scripts/uart-poke.py`** is the universal UART scratchpad. `--send` accepts Python escapes (`\r`, `\x03`). `--wait 0 --send ''` to passive-listen. `--quiet` suppresses the trailing hex dump (use it whenever the output volume matters — e.g. bring-up scripts piped through harness/agent layers).
 - **`scripts/uboot-intercept.py`** must be tolerant of `/dev/ttyUSB0` disappearing mid-run (CH340 brownout). It reopens the port until `--duration` elapses or it sees a known U-Boot prompt regex.
-- **`scripts/nand-flash.py`** sequence per file: `loady 0x4000000` → `sb -k <file>` (host writes ymodem to `/dev/ttyUSB0`, stderr captured to `/tmp/sb-progress.log`) → `nand erase <off> <part_size>` → `nand write 0x4000000 <off> <page-aligned size>`. Erase always covers the full partition; write only the actual file size (page-aligned). `LAYOUT` constant in the file is the source of truth for offsets — currently includes `uImage`, `dtb`, `bitstream` (→ mtd5), `rootfs`. Paths are joined with `--buildroot` (default `build/buildroot`); the bitstream entry uses `../../backup/top.bit` to escape back to the repo root.
+- **`scripts/nand-flash.py`** sequence per file: `loady 0x4000000` → `sb -k <file>` (host writes ymodem to `/dev/ebaz-uart`, stderr captured to `/tmp/sb-progress.log`) → `nand erase <off> <part_size>` → `nand write 0x4000000 <off> <page-aligned size>`. Erase always covers the full partition; write only the actual file size (page-aligned). `LAYOUT` constant in the file is the source of truth for offsets — currently includes `uImage`, `dtb`, `bitstream` (→ mtd5), `rootfs`. Paths are joined with `--buildroot` (default `build/buildroot`); the bitstream entry uses `../../backup/top.bit` to escape back to the repo root.
 - **`scripts/uart-capture-b64.py`** pulls a binary file from a running Linux on the board to the host over UART. Board side runs e.g. `base64 /tmp/boot.bin`; host script frames with `BEGIN_B64` / `END_B64` markers and waits for `END_B64\r\n# ` (sentinel + prompt) so a coincidental match in command echo doesn't trip it. Decoded body is filtered through a strict base64 alphabet whitelist before decode. Saves `<out>.raw` alongside `<out>` for post-mortem.
 - **`scripts/uart-push-b64.py`** is the inverse: ship a host file to the board. Critical detail: the cmd line starts with `stty -echo` so the board's tty doesn't echo the 2+ MB base64 stream back (otherwise the kernel TX buffer interleaves echo bytes with the trailing `md5sum` / sentinel output and the host can't parse the result). The host write loop drains `s.in_waiting` after every chunk to keep the USB-serial RX ring buffer well below overflow.
 - **`ebaz4205.cfg`** at the repo root is the OpenOCD top-level config (HS3 + zynq_7000 target, 5 MHz JTAG, srst_only).

@@ -2,14 +2,14 @@
 """Flash kernel + dtb + rootfs to EBAZ4205 NAND via U-Boot ymodem + nand cmds.
 
 Assumes:
-  - Board is at U-Boot prompt 'zynq-uboot>' on /dev/ttyUSB0 @ 115200
+  - Board is at U-Boot prompt 'zynq-uboot>' on /dev/ebaz-uart @ 115200
   - lrzsz's `sb` is available on host (ymodem send)
   - Files to flash exist at the paths passed
 
 Sequence per (file, nand_offset, partition_size):
   1. send `loady 0x4000000` to U-Boot
   2. wait for "Ready for binary" banner
-  3. close UART, spawn `sb -k <file>` reading/writing /dev/ttyUSB0
+  3. close UART, spawn `sb -k <file>` reading/writing /dev/ebaz-uart
   4. reopen UART, wait for "## Total Size" + 'zynq-uboot>' prompt
   5. send `nand erase <offset> <partition_size>` (full erase block alignment)
   6. send `nand write 0x4000000 <offset> <actual_file_size>`
@@ -71,7 +71,7 @@ def flash_one(port, name, file_path, nand_offset, part_size, load_addr, page_siz
     wait_for(s, READY_RE, timeout=5)
     s.close()
 
-    # Step 3: sb sends the file via ymodem on /dev/ttyUSB0
+    # Step 3: sb sends the file via ymodem on /dev/ebaz-uart
     print(f"[*] running sb -k {file_path}", flush=True)
     with open(port, 'r+b', buffering=0) as tty, open('/tmp/sb-progress.log', 'wb') as log:
         rc = subprocess.run(['sb', '-k', file_path], stdin=tty, stdout=tty, stderr=log)
