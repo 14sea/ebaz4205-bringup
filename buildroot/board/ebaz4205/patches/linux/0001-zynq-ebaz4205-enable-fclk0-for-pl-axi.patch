@@ -1,0 +1,20 @@
+From: EBAZ4205 bring-up
+Subject: [PATCH] ARM: dts: zynq-ebaz4205: enable FCLK0 (fclk-enable=<9>)
+
+The board dts set fclk-enable=<8> (FCLK3 only, the GbE PHY ref clock).
+With FCLK0 excluded, Linux clk_disable_unused() gates it, freezing any PL
+AXI interconnect clocked by FCLK0 -> every PS->PL AXI access hangs the A9
+hard (JTAG halt then times out; only a power-cycle recovers). Enable FCLK0
+too (<9> = FCLK0|FCLK3) so PL peripherals are reachable from Linux /dev/mem.
+
+--- a/arch/arm/boot/dts/xilinx/zynq-ebaz4205.dts
++++ b/arch/arm/boot/dts/xilinx/zynq-ebaz4205.dts
+@@ -26,7 +26,7 @@
+ 
+ &clkc {
+ 	ps-clk-frequency = <33333333>;
+-	fclk-enable = <8>;
++	fclk-enable = <9>;
+ };
+ 
+ &gem0 {

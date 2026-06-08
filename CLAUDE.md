@@ -61,12 +61,20 @@ Look for `[*** U-Boot prompt detected ***]`. Leaves `zynq-uboot>` waiting for in
 
 **Build kernel + rootfs**:
 ```bash
+# build/buildroot/ is its OWN git checkout (separate .git) and is .gitignored here,
+# so the source-of-truth defconfig + board patches live tracked under buildroot/ and
+# get mirrored in before building:
+cp -r buildroot/configs buildroot/board build/buildroot/
 cd build/buildroot
 # Strip PATH of Windows entries — Buildroot rejects PATH with spaces (WSL inherits Windows PATH)
 PATH=$(echo "$PATH" | tr ':' '\n' | grep -v ' \| ' | grep -v '^/mnt/c' | tr '\n' ':' | sed 's/:$//')
 PATH="$PATH" make ebaz4205_defconfig
 PATH="$PATH" make BR2_JLEVEL=20 -j20
 ```
+The defconfig sets `BR2_GLOBAL_PATCH_DIR="board/ebaz4205/patches"`, which applies
+`buildroot/board/ebaz4205/patches/linux/*.patch` to the kernel at extract time (currently
+the `fclk-enable=<9>` dts fix — see "Things that bit us"). Applying a new/changed patch
+needs a re-extract: `make linux-dirclean && make linux`.
 Outputs land in `build/buildroot/output/images/`: `uImage`, `zynq-ebaz4205.dtb`, `rootfs.jffs2`.
 
 **Flash kernel/dtb/rootfs to NAND** (requires U-Boot prompt active):
@@ -121,6 +129,7 @@ python3 -c "d=open('backup/boot.bin','rb').read(); open('backup/top.bit','wb').w
 - **`uboot-intercept.py` leaves a residual `d` in U-Boot's input buffer** after detecting the prompt (it was hammering `'d'` to break autoboot). The very next command we send gets prefix-mangled — `loady 0x4000000` becomes `ddloady`, `Unknown command`. Always send a bare `\r` between intercept and the next U-Boot command. `nand-flash.py` runs are most affected.
 - **Board's tty canonical-mode echo + interleaving traps host→board file pushes.** When a host script writes 2+ MB into a Linux shell on the board, the kernel echoes every byte back to host *and* interleaves those echo bytes with the actual `md5sum` / `echo` output the script produces afterwards — the trailing portion of the host's RX buffer becomes unparseable. Fix: prefix the cmd line with `stty -echo`, suffix with `stty echo`. With echo off, the host receives only the trailing md5 + sentinel + prompt cleanly. See `uart-push-b64.py`.
 - **A failed `fpgautil -b <bad.bit>` leaves DEVCFG in a stuck state** (`Timeout waiting for PCFG_INIT` on subsequent loads). Retrying with a known-good bitstream from the same Linux session also fails. Only known recovery is power-cycle. The S2 reset button on this PCB rev is unreliable — physical Type-C unplug works. Don't deliberately load a corrupted bitstream unless you're prepared to power-cycle.
+- **Reading a PL AXI register from Linux hangs the A9 *hard* unless FCLK0 is kept enabled.** The board dts shipped `&clkc { fclk-enable = <8>; }` (FCLK3 only — the GbE PHY ref clock). FCLK0 is then gated by `clk_disable_unused()` at late_initcall, so any AXI interconnect clocked by FCLK0 is frozen → a PS→PL read (`/dev/mem`, even a JTAG DAP mem-AP read) never completes, the CPU stalls so hard that **JTAG halt itself times out** and only a Type-C power-cycle recovers (SRST isn't wired; SLCR soft-reset needs a haltable core). Symptom under U-Boot is fine (U-Boot leaves FCLKs on) — the hang is Linux-only. Fix is `fclk-enable = <9>` (FCLK0|FCLK3), shipped as `buildroot/board/ebaz4205/patches/linux/0001-*.patch` (tracked; mirrored into `build/buildroot/` before building) via `BR2_GLOBAL_PATCH_DIR`. Safe way to probe PL-AXI without risking the hang: `openocd -f ebaz4205.cfg -c "target create zynq.ahb mem_ap -dap zynq.dap -ap-num 0" -c init -c "zynq.ahb mdw 0x41200000 1" -c shutdown` (returns a value if alive, WAIT-timeout error if dead, never wedges the CPU).
 
 ## Layout
 
