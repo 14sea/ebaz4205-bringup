@@ -40,7 +40,7 @@ scripts/                       Bring-up plumbing
   nand-flash.py                  ymodem + nand erase/write driver
   uart-capture-b64.py            board → host file transfer over UART
   uart-push-b64.py               host → board file transfer over UART
-buildroot-config/              Buildroot defconfig — drop into buildroot/configs/
+buildroot/                     tracked defconfig + board patches → mirror into build/buildroot/
 projects/                      reserved for FPGA project sources
 bitstreams/                    reserved for built bitstreams
 CLAUDE.md                      canonical handbook (read this!)
@@ -51,9 +51,11 @@ CLAUDE.md                      canonical handbook (read this!)
 You need: a working JTAG + UART connection, the WSL/Linux host with `openocd`, `gh`, Python 3.12, and Buildroot 2026.05 (or compatible) checked out separately.
 
 ```bash
-# 1. Set up Buildroot (one-time)
+# 1. Set up Buildroot (one-time). Mirror BOTH the defconfig AND the board patch
+#    dir — the defconfig sets BR2_GLOBAL_PATCH_DIR="board/ebaz4205/patches", which
+#    applies the fclk-enable=<9> dts fix (without it, PL AXI hangs Linux hard).
 git clone https://gitlab.com/buildroot.org/buildroot.git build/buildroot
-cp buildroot-config/ebaz4205_defconfig build/buildroot/configs/
+cp -r buildroot/configs buildroot/board build/buildroot/
 
 # 2. Bring up Python venv (uart scripts depend on pyserial)
 python3 -m venv .env

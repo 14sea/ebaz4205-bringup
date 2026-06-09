@@ -2,6 +2,15 @@
 build/
 .env/
 
+# Vivado run noise (journals, logs, crash backups, visualizer, scratch)
+vivado*.jou
+vivado*.log
+*.backup.jou
+*.backup.log
+hd_visual/
+.Xil/
+tmp/
+
 # Workspace-private state
 .claude/
 
