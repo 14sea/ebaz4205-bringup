@@ -48,7 +48,7 @@ state['ser'] = open_port()
 if state['ser'] is None:
     print(f"could not open {args.port}", file=sys.stderr); sys.exit(1)
 print(f"opened {args.port} @ {args.baud}", flush=True)
-print(f"=== PRESS THE RESET BUTTON (S2 / 主板復位鍵) NOW — script will survive disconnect ===", flush=True)
+print(f"=== PRESS THE RESET BUTTON (S2 / main-board reset) NOW — script will survive disconnect ===", flush=True)
 
 deadline = time.time() + args.duration
 reconnects = 0
