@@ -10,22 +10,43 @@ This is a hardware bring-up workspace, not a software project. Most of the "code
 - **NAND**: Winbond W29N01HV, 128 MiB (2 KiB pages, 128 KiB erase blocks), 9 partitions, miner BOOT.BIN at offset 0
 - **JTAG**: Digilent HS3 (FT232H) on header J8 — `nSRST` not wired, so reset goes through SLCR writes
 - **UART**: USB-CH340 on the V2.0 expansion board, wired to MIO of UART1 (`/dev/ttyPS0`), 115200 8N1
-- **Ethernet**: dead at the magnetics; UART is the only interface in
+- **Ethernet**: PHY (IP101G) is wired to **PL fabric pins**, not PS MIO — PS GEM0 reaches it over EMIO + FCLK3 (25 MHz) through the bitstream, so MDIO/link only work with a PL image loaded. On this particular board the port never links; see [What doesn't](#what-doesnt-and-why)
 - **Boot mode**: hard-strapped to NAND boot; no DIP switch on this PCB rev
 
 ## What works today
 
-- ✅ Buildroot 2026.05 + Linux 6.12 booting from NAND (kernel + dtb + jffs2 rootfs)
+- ✅ Buildroot 2026.05 + Xilinx `linux-xlnx` 6.12.70 booting from NAND (kernel + dtb + jffs2 rootfs)
 - ✅ U-Boot recovery via SLCR soft-reset (no power cycle needed under normal conditions)
-- ✅ FPGA dynamic reconfig via `fpgautil` (full reload, ~38 ms): runtime bitstream from `/dev/mtd5`, sliced from the original BOOT.BIN at byte `0x19770`
-- ✅ Survives Type-C power cycle: mtd5 retains the bitstream, on-board reload via `dd` + `fpgautil` is one-shot
+- ✅ FPGA dynamic reconfig via `fpgautil` (full reload, ~38 ms), using the PL bitstream carved out of the original miner BOOT.BIN
+- ✅ Survives Type-C power cycle: the bitstream lives in NAND, so the on-board reload is `dd` + `fpgautil`, no host involvement
 - ✅ Host ↔ board file transfer over UART via base64 (no network, no `lrzsz` on board needed)
+- ✅ Console login is `root` with an empty password (send `root\r` at `buildroot login:` — one CR, not two, or getty eats the second)
+
+The bitstream slice lives in mtd0 (the untouched miner BOOT.BIN) at byte `0x19770`, length `0x1FCB70`:
+
+```sh
+dd if=/dev/mtd0 bs=16 skip=6519 count=130231 of=/tmp/top.bit   # md5 2d68aabf05b260779958e7f741bc0988
+fpgautil -b /tmp/top.bit                                        # ~38 ms, state=operating
+```
+
+A copy was also written to mtd5 (`nand-bitstream`) via `nand-flash.py --only bitstream`, but a later re-read
+found mtd5 blank at offset 0 — until that is re-verified, **treat mtd0 @ `0x19770` as the source of truth**.
 
 ## What doesn't (and why)
 
-- **Network bring-up** — RJ45 magnetics are physically dead on this board, swap-tested. UART is the only path in
+- **Network bring-up** — the RJ45 port has never linked on this board. The PHY itself is provably fine: read
+  over GEM0 `phy_maint` it returns PHYID `0x02430C54`, BMCR `0x3100`, BMSR `0x7849` (link=0), **LPA `0x0000`**,
+  and FCLK3 measures 25.0 MHz — i.e. clock, bitstream routing and MDIO are all intact and the PHY simply
+  receives nothing, so the break is downstream on the copper (magnetics / jack / MDI traces). Reflowing the
+  BT16B03 jack pins did not help. Caveat worth knowing before spending money on it: a *brand-new* EBAZ4203
+  produced the byte-identical "dead" signature when cabled straight to a PC NIC, and linked instantly on a
+  router LAN port — so this signature is also what a peer-side false negative looks like. A router retest of
+  the 4205 still failed while four 4203s passed on the same router in the same session, but the exact cable
+  was never cross-checked back-to-back. Verdict: **provisionally condemned, repair not attempted further**.
+  UART is the only path in
 - **Partial reconfig (PL B-route)** — needs Vivado, no disk space for the install; deferred
 - **Mainline U-Boot** — boots but has a UART pinmux conflict with the miner's MIO routing; staying on the original miner U-Boot, which works perfectly
+- **USB gadget (`g_ether`) as a network substitute** — impossible, there is no USB hardware on the board: the PS ULPI PHY and connector are simply not populated (the only "USB" is the CH340 serial bridge on the expansion board)
 
 ## Repo layout
 
@@ -40,17 +61,30 @@ scripts/                       Bring-up plumbing
   nand-flash.py                  ymodem + nand erase/write driver
   uart-capture-b64.py            board → host file transfer over UART
   uart-push-b64.py               host → board file transfer over UART
-buildroot/                     tracked defconfig + board patches → mirror into build/buildroot/
+buildroot/                     source of truth for the Buildroot side — mirror into build/buildroot/
+  configs/ebaz4205_defconfig     the defconfig
+  board/ebaz4205/patches/        BR2_GLOBAL_PATCH_DIR — kernel patches (fclk-enable=<9>)
 projects/                      reserved for FPGA project sources
 bitstreams/                    reserved for built bitstreams
 CLAUDE.md                      canonical handbook (read this!)
 ```
 
+Not in git (see `.gitignore`): `build/` (Buildroot checkout, its own repo), `.env/` (Python venv —
+a directory, not a dotenv file), `backup/` and `references/`/`img/`/`*.pdf` (vendor BOOT.BIN,
+bitstream and schematics — not redistributable, bring your own).
+
 ## Quick start
 
-You need: a working JTAG + UART connection, the WSL/Linux host with `openocd`, `gh`, Python 3.12, and Buildroot 2026.05 (or compatible) checked out separately.
+You need: a working JTAG + UART connection, a Linux/WSL host with `openocd`, `lrzsz` (`sb` for the ymodem
+upload), Python 3.12, and a Buildroot 2026.05-or-later checkout of your own.
 
 ```bash
+# 0. Every script defaults to the /dev/ebaz-uart symlink — the raw /dev/ttyUSBN number is
+#    unstable across the brownout that a board reset causes. Create it once:
+echo 'SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ebaz-uart"' \
+  | sudo tee /etc/udev/rules.d/90-ebaz-uart.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+
 # 1. Set up Buildroot (one-time). Mirror BOTH the defconfig AND the board patch
 #    dir — the defconfig sets BR2_GLOBAL_PATCH_DIR="board/ebaz4205/patches", which
 #    applies the fclk-enable=<9> dts fix (without it, PL AXI hangs Linux hard).
@@ -78,12 +112,18 @@ openocd -f ebaz4205.cfg \
   -c "shutdown"
 wait
 
-# 5. Flash and reboot
+# 5. Clear the residual 'd' the intercept left in U-Boot's input buffer, then flash and reboot.
+#    Without the bare CR the next command arrives as `ddloady ...` -> "Unknown command".
+.env/bin/python scripts/uart-poke.py --send '\r' --wait 2 --quiet
 .env/bin/python scripts/nand-flash.py                  # all of uImage, dtb, rootfs
 .env/bin/python scripts/uart-poke.py --send 'reset\r' --wait 60
 ```
 
-For the FPGA reload workflow (`fpgautil` from mtd5), see the recipes section in [`CLAUDE.md`](CLAUDE.md).
+Two things that will bite you on the Buildroot side: a plain `make` after enabling a new package
+only re-runs the rootfs assembly stage (force it with `make <pkgname>` first), and changing a
+patch under `board/ebaz4205/patches/` needs `make linux-dirclean && make linux` to re-extract.
+
+For the FPGA reload workflow and the full trap list, see the recipes section in [`CLAUDE.md`](CLAUDE.md).
 
 ## NAND layout
 
@@ -93,7 +133,7 @@ For the FPGA reload workflow (`fpgautil` from mtd5), see the recipes section in 
 0x00800000 128 KB   nand-device-tree  zynq-ebaz4205.dtb
 0x00820000  10 MB   nand-rootfs
 0x01220000  16 MB   nand-jffs2
-0x02220000   8 MB   nand-bitstream    PL bitstream for fpgautil reload
+0x02220000   8 MB   nand-bitstream    mtd5 — intended home for the fpgautil bitstream (see caveat above)
 0x02a20000  64 MB   nand-allrootfs    mtdblock6 — active rootfs
 0x06a20000  20 MB   nand-release
 0x07e00000   2 MB   nand-reserve
@@ -101,7 +141,13 @@ For the FPGA reload workflow (`fpgautil` from mtd5), see the recipes section in 
 
 ## Status
 
-Active solo project; expect `CLAUDE.md` to be the up-to-date source of truth as the workspace evolves. Pull requests welcome but the hardware-specific paths (NAND offsets, UART numbering, board photos) are tied to one specific PCB revision — mileage will vary.
+The bring-up itself is done and stable — kernel/dtb/rootfs iteration, U-Boot recovery and PL reload
+all work, and the board now mostly serves as the hardware platform for follow-on FPGA experiments
+kept in their own repositories. This repo gets updated when the bring-up flow itself changes;
+`CLAUDE.md` is the up-to-date source of truth in between.
+
+Solo hobby project. Pull requests welcome, but the hardware-specific bits (NAND offsets, UART
+routing, expansion-board wiring) are tied to one specific PCB revision — mileage will vary.
 
 ## License
 
