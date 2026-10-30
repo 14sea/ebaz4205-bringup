@@ -91,7 +91,12 @@ cd build/buildroot && PATH=... make -j20    # rebuild changes
 .env/bin/python scripts/uart-poke.py --send 'reset\r' --wait 60
 ```
 
-**FPGA full-reload via fpgautil (A-route)**: requires `BR2_PACKAGE_XILINX_FPGAUTIL=y` in defconfig and a built rootfs that includes `/usr/bin/fpgautil`. Bitstream-of-truth lives in mtd0 BOOT.BIN starting at byte 0x19770 (length 0x1FCB70). The 2 MB slice is in `backup/top.bit` and persisted to mtd5 (nand-bitstream). Steps from a running Linux:
+**FPGA full-reload via fpgautil (A-route)**: requires `BR2_PACKAGE_XILINX_FPGAUTIL=y` in defconfig and a built rootfs that includes `/usr/bin/fpgautil`. Bitstream-of-truth lives in mtd0 BOOT.BIN starting at byte 0x19770 (length 0x1FCB70); the host copy is `backup/top.bit`. **Do not trust mtd5** — it held this slice on 2026-05-06, was overwritten with zynq-agentctl's `lut_A.bin` (a single-LUT demo, md5 `ac39ec8a…`) in 2026-06, and a 2026-08 re-read found it blank at offset 0; its current content is unknown. Runtime reload from a running Linux, straight from mtd0 (survives power cycles, no host involvement):
+```bash
+dd if=/dev/mtd0 bs=16 skip=6519 count=130231 of=/tmp/top.bit   # 6519*16=0x19770, 130231*16=0x1FCB70; md5 2d68aabf05b260779958e7f741bc0988
+fpgautil -b /tmp/top.bit                                        # ~38 ms, state=operating
+```
+Check the md5 before `fpgautil` — a bad load wedges DEVCFG until a power cycle (see "Things that bit us"). Host-side tooling, only needed to re-derive `backup/top.bit` or to repopulate mtd5:
 ```bash
 # one-time bootstrap to capture the bitstream from mtd0 to host (slow: ~6 min):
 .env/bin/python scripts/uart-capture-b64.py \
@@ -100,13 +105,12 @@ cd build/buildroot && PATH=... make -j20    # rebuild changes
   --send 'dd if=/dev/mtd0 of=/tmp/boot.bin bs=4096 2>/dev/null; base64 /tmp/boot.bin'
 # slice on host (skip 0x19770, take 0x1FCB70 — sync word 66 55 99 aa):
 python3 -c "d=open('backup/boot.bin','rb').read(); open('backup/top.bit','wb').write(d[0x19770:0x19770+0x1FCB70])"
-# write to mtd5 once via U-Boot (survives reboots):
+# optional — repopulate mtd5 via U-Boot (overwrites whatever is there now):
 # get U-Boot prompt as above
 .env/bin/python scripts/nand-flash.py --only bitstream
 .env/bin/python scripts/uart-poke.py --send 'reset\r' --wait 60
-# from now on, on every fresh boot, runtime reload is just:
-#   dd if=/dev/mtd5 bs=4096 count=509 of=/tmp/top.bit
-#   fpgautil -b /tmp/top.bit
+# only after re-reading mtd5 and matching the md5 may it serve as a reload source:
+#   dd if=/dev/mtd5 bs=4096 count=509 | head -c 2083696 | md5sum   # expect 2d68aabf…
 ```
 
 ## Key script invariants
@@ -136,7 +140,7 @@ python3 -c "d=open('backup/boot.bin','rb').read(); open('backup/top.bit','wb').w
 - `ebaz4205.cfg` — OpenOCD top-level config for HS3 + Zynq-7000
 - `scripts/` — all the bring-up plumbing (Python + bash + TCL)
 - `build/buildroot/` — Buildroot 2026.05-git with `configs/ebaz4205_defconfig`. Output in `output/images/`
-- `backup/` — preserved bits from the original NAND. Holds `boot.bin` (full mtd0 dump, 3 MB), `boot.bin.raw` (raw UART capture for post-mortem), `top.bit` (sliced PL bitstream from BOOT.BIN @ 0x19770, 2 MB; same content also persisted to mtd5)
+- `backup/` — preserved bits from the original NAND. Holds `boot.bin` (full mtd0 dump, 3 MB), `boot.bin.raw` (raw UART capture for post-mortem), `top.bit` (sliced PL bitstream from BOOT.BIN @ 0x19770, 2 MB; md5 `2d68aabf…`. mtd5 no longer reliably holds a copy — see the fpgautil recipe)
 - `bitstreams/`, `projects/` — intended for later FPGA work
 - `img/`, `*.pdf`, `e4205.pcb` — board photos and Altium schematics for the main + V1.1 + V2.0 expansion + OV5640 + VGA-UART boards
 - `.env/` — local Python 3.12 venv with `pyserial`, `pyftdi`, `pyusb`, `construct`. **It is a directory, not a dotenv file.**
