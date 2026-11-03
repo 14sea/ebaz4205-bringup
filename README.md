@@ -10,7 +10,7 @@ This is a hardware bring-up workspace, not a software project. Most of the "code
 - **NAND**: Winbond W29N01HV, 128 MiB (2 KiB pages, 128 KiB erase blocks), 9 partitions, miner BOOT.BIN at offset 0
 - **JTAG**: Digilent HS3 (FT232H) on header J8 — `nSRST` not wired, so reset goes through SLCR writes
 - **UART**: USB-CH340 on the V2.0 expansion board, wired to MIO of UART1 (`/dev/ttyPS0`), 115200 8N1
-- **Ethernet**: PHY (IP101G) is wired to **PL fabric pins**, not PS MIO — PS GEM0 reaches it over EMIO + FCLK3 (25 MHz) through the bitstream, so MDIO/link only work with a PL image loaded. On this particular board the port never links; see [What doesn't](#what-doesnt-and-why)
+- **Ethernet**: PHY (IP101G) is wired to **PL fabric pins**, not PS MIO — PS GEM0 reaches it over EMIO through the bitstream, so MDIO/link only work with a PL image loaded. The PHY runs from its own 25 MHz crystal (schematic `references/4205.pdf`), not from an FCLK. On this particular board the port never links; see [What doesn't](#what-doesnt-and-why)
 - **Boot mode**: hard-strapped to NAND boot; no DIP switch on this PCB rev
 
 ## What works today
@@ -36,7 +36,7 @@ found mtd5 blank at offset 0 — until that is re-verified, **treat mtd0 @ `0x19
 
 - **Network bring-up** — the RJ45 port has never linked on this board. The PHY itself is provably fine: read
   over GEM0 `phy_maint` it returns PHYID `0x02430C54`, BMCR `0x3100`, BMSR `0x7849` (link=0), **LPA `0x0000`**,
-  and FCLK3 measures 25.0 MHz — i.e. clock, bitstream routing and MDIO are all intact and the PHY simply
+  and the PHY runs from its own 25 MHz crystal — i.e. bitstream routing and MDIO are intact and the PHY simply
   receives nothing, so the break is downstream on the copper (magnetics / jack / MDI traces). Reflowing the
   BT16B03 jack pins did not help. Caveat worth knowing before spending money on it: a *brand-new* EBAZ4203
   produced the byte-identical "dead" signature when cabled straight to a PC NIC, and linked instantly on a
