@@ -139,6 +139,17 @@ For the FPGA reload workflow and the full trap list, see the recipes section in 
 0x07e00000   2 MB   nand-reserve
 ```
 
+## Similar projects
+
+This is not the only public bring-up of these boards. Others include
+[seyedali-mousavi/ebaz4302-bringup](https://github.com/seyedali-mousavi/ebaz4302-bringup)
+(EBAZ4203-class board; includes a JTAG XADC read script and hardware notes),
+[BlackF1re/atlantian](https://github.com/BlackF1re/atlantian) (Debian on the Antminer S9
+control board, a Zynq-7010 sibling; NAND backup and write-verify scripts) and
+xjtuecho/EBAZ4205. They were surveyed in 2026-10 but not verified in detail. What this repo
+documents in particular is replacing kernel + dtb + rootfs in NAND over UART only while
+keeping the miner's original BOOT.BIN/FSBL/U-Boot, and the pitfalls hit on the way.
+
 ## Status
 
 The bring-up itself is done and stable — kernel/dtb/rootfs iteration, U-Boot recovery and PL reload
