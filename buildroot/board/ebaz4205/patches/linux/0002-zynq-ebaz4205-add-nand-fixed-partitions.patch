@@ -1,0 +1,34 @@
+From: EBAZ4205 bring-up
+Subject: [PATCH] ARM: dts: zynq-ebaz4205: add the miner's NAND fixed-partitions
+
+The board's U-Boot passes no mtdparts (bootargs: root=/dev/mtdblock6 ...),
+so the kernel only learns the 9 NAND partitions from the device tree. The
+in-tree dts has none, which leaves no mtdblock6 and no rootfs. Add the
+miner layout (same as the dtb that has been running from NAND since
+2026-06-08, zynq-agentctl board/dts/zynq-ebaz4205.dts).
+
+--- a/arch/arm/boot/dts/xilinx/zynq-ebaz4205.dts
++++ b/arch/arm/boot/dts/xilinx/zynq-ebaz4205.dts
+@@ -55,6 +55,22 @@
+ 
+ 	nand@0 {
+ 		reg = <0>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 { label = "nand-fsbl-uboot";  reg = <0x00000000 0x00300000>; };
++			partition@1 { label = "nand-linux";       reg = <0x00300000 0x00500000>; };
++			partition@2 { label = "nand-device-tree"; reg = <0x00800000 0x00020000>; };
++			partition@3 { label = "nand-rootfs";      reg = <0x00820000 0x00a00000>; };
++			partition@4 { label = "nand-jffs2";       reg = <0x01220000 0x01000000>; };
++			partition@5 { label = "nand-bitstream";   reg = <0x02220000 0x00800000>; };
++			partition@6 { label = "nand-allrootfs";   reg = <0x02a20000 0x04000000>; };
++			partition@7 { label = "nand-release";     reg = <0x06a20000 0x013e0000>; };
++			partition@8 { label = "nand-reserve";     reg = <0x07e00000 0x00200000>; };
++		};
+ 	};
+ };
+ 

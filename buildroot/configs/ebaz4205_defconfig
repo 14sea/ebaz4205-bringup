@@ -5,8 +5,10 @@
 # miner's bootargs `rootfstype=jffs2` (so we don't have to touch the U-Boot env).
 
 # --- local patches: board/ebaz4205/patches/<pkg>/*.patch ---
-# Carries the zynq-ebaz4205 dts fclk-enable=<9> fix (enable FCLK0 so PL AXI is
-# reachable from Linux; stock dts used <8> and clk_disable_unused froze the PL).
+# Carries two zynq-ebaz4205 dts fixes: 0001 fclk-enable=<9> (enable FCLK0 so PL AXI
+# is reachable from Linux; stock dts used <8> and clk_disable_unused froze the PL),
+# 0002 the miner's 9 NAND fixed-partitions (U-Boot passes no mtdparts; without them
+# there is no mtdblock6 and no rootfs).
 BR2_GLOBAL_PATCH_DIR="board/ebaz4205/patches"
 
 # --- target arch ---

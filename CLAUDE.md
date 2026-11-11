@@ -73,11 +73,12 @@ PATH="$PATH" make BR2_JLEVEL=20 -j20
 ```
 The defconfig sets `BR2_GLOBAL_PATCH_DIR="board/ebaz4205/patches"`, which applies
 `buildroot/board/ebaz4205/patches/linux/*.patch` to the kernel at extract time (currently
-the `fclk-enable=<9>` dts fix — see "Things that bit us"). Applying a new/changed patch
+0001 the `fclk-enable=<9>` dts fix — see "Things that bit us" — and 0002 the miner's 9 NAND
+`fixed-partitions`, without which the kernel has no `mtdblock6`). Applying a new/changed patch
 needs a re-extract: `make linux-dirclean && make linux`.
 Outputs land in `build/buildroot/output/images/`: `uImage`, `zynq-ebaz4205.dtb`, `rootfs.jffs2`.
 
-**⚠ The Buildroot dtb has no NAND partitions (found 2026-11-11).** The dtb in NAND is `zynq-agentctl/board/zynq-ebaz4205.dtb` (12,820 B, crc32 `cf16ad5d`, built 2026-06-08 from that repo's tracked `board/dts/zynq-ebaz4205.dts`): it carries `fclk-enable = <9>` **and** a `partitions { compatible = "fixed-partitions"; … }` node with the 9 NAND partitions. `build/buildroot/output/images/zynq-ebaz4205.dtb` (12,126 B, from the in-tree dts + the fclk patch) has **no** partitions node, and the bootargs carry no `mtdparts`, so flashing it would leave the kernel without `mtdblock6` → no rootfs. Until the Buildroot patch set adds the partitions, flash the agentctl dtb (e.g. stage it as `<dir>/output/images/zynq-ebaz4205.dtb` and pass `--buildroot <dir>`), never the Buildroot one.
+**NAND partitions live in the dtb.** U-Boot passes no `mtdparts`, so the kernel learns the 9 NAND partitions only from the device tree. Until 2026-11-11 the Buildroot dtb had none (flashing it would have lost `mtdblock6`); the running NAND dtb came from `zynq-agentctl/board/zynq-ebaz4205.dtb`. Patch 0002 adds the same `fixed-partitions` node; the rebuilt `output/images/zynq-ebaz4205.dtb` (12,820 B, crc32 `cf16ad5d`) is **byte-identical** to the dtb in NAND. If you ever change the dts, check the rebuilt dtb still has the `partitions` node before flashing it.
 
 **Flash kernel/dtb/rootfs to NAND** (requires U-Boot prompt active):
 ```bash
