@@ -83,7 +83,7 @@ upload), Python 3.12, and a Buildroot 2026.05-or-later checkout of your own.
 
 ```bash
 # 0. Every script defaults to the /dev/ebaz-uart symlink — the raw /dev/ttyUSBN number is
-#    unstable across the brownout that a board reset causes. Create it once:
+#    unstable across the CH340 dropout that a board reset causes (cause unresolved). Create it once:
 echo 'SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ebaz-uart"' \
   | sudo tee /etc/udev/rules.d/90-ebaz-uart.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
@@ -136,7 +136,7 @@ For the FPGA reload workflow and the full trap list, see the recipes section in 
 0x00800000 128 KB   nand-device-tree  zynq-ebaz4205.dtb
 0x00820000  10 MB   nand-rootfs
 0x01220000  16 MB   nand-jffs2
-0x02220000   8 MB   nand-bitstream    mtd5 — intended home for the fpgautil bitstream (see caveat above)
+0x02220000   8 MB   nand-bitstream    mtd5 — currently holds lut_A.bin; stock nandboot tries it (see caveat above)
 0x02a20000  64 MB   nand-allrootfs    mtdblock6 — active rootfs
 0x06a20000  20 MB   nand-release
 0x07e00000   2 MB   nand-reserve
