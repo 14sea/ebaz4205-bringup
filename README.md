@@ -118,7 +118,11 @@ wait
 # 5. Clear the residual 'd' the intercept left in U-Boot's input buffer, then flash and reboot.
 #    Without the bare CR the next command arrives as `ddloady ...` -> "Unknown command".
 .env/bin/python scripts/uart-poke.py --send '\r' --wait 2 --quiet
-.env/bin/python scripts/nand-flash.py                  # all of uImage, dtb, rootfs
+# ⚠ The Buildroot dtb has no NAND partitions node — flashing it loses mtdblock6 (no rootfs).
+#   Flash zynq-agentctl's board/zynq-ebaz4205.dtb instead (see CLAUDE.md), e.g.:
+#   mkdir -p /tmp/dtb/output/images && cp ../zynq_agentctl/board/zynq-ebaz4205.dtb /tmp/dtb/output/images/
+#   .env/bin/python scripts/nand-flash.py --only dtb --buildroot /tmp/dtb
+.env/bin/python scripts/nand-flash.py --only uImage,rootfs  # kernel + rootfs from Buildroot
 .env/bin/python scripts/uart-poke.py --send 'reset\r' --wait 60
 ```
 
