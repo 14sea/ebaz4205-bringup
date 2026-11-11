@@ -29,8 +29,11 @@ dd if=/dev/mtd0 bs=16 skip=6519 count=130231 of=/tmp/top.bit   # md5 2d68aabf05b
 fpgautil -b /tmp/top.bit                                        # ~38 ms, state=operating
 ```
 
-A copy was also written to mtd5 (`nand-bitstream`) via `nand-flash.py --only bitstream`, but a later re-read
-found mtd5 blank at offset 0 — until that is re-verified, **treat mtd0 @ `0x19770` as the source of truth**.
+A copy was also written to mtd5 (`nand-bitstream`) via `nand-flash.py --only bitstream`, but mtd5 was later
+overwritten with zynq-agentctl's `lut_A.bin` and still holds it (board-verified 2026-11-11; an earlier "blank at
+offset 0" read was the `.bin`'s 32 leading `0xFF` bytes) — **treat mtd0 @ `0x19770` as the source of truth**.
+The stock boot reads mtd5 and tries `fpga loadb` on it every time; that fails (no `.bit` header) and is harmless,
+because the FSBL has already configured the PL from BOOT.BIN.
 
 ## What doesn't (and why)
 
