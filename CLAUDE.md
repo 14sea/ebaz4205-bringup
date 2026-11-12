@@ -144,9 +144,12 @@ python3 -c "d=open('backup/boot.bin','rb').read(); open('backup/top.bit','wb').w
 ## Layout
 
 - `ebaz4205.cfg` — OpenOCD top-level config for HS3 + Zynq-7000
-- `scripts/` — all the bring-up plumbing (Python + bash + TCL)
-- `build/buildroot/` — Buildroot 2026.05-git with `configs/ebaz4205_defconfig`. Output in `output/images/`
+- `scripts/` — all the bring-up plumbing (Python + bash)
+- `buildroot/` — tracked source of truth for `configs/ebaz4205_defconfig` and `board/ebaz4205/patches/linux/` (mirrored into `build/buildroot/` before building)
+- `build/buildroot/` — Buildroot 2026.05-git checkout (own `.git`, gitignored here) holding the mirrored defconfig + board dir. Output in `output/images/`
 - `backup/` — preserved bits from the original NAND. Holds `boot.bin` (full mtd0 dump, 3 MB), `boot.bin.raw` (raw UART capture for post-mortem), `top.bit` (sliced PL bitstream from BOOT.BIN @ 0x19770, 2 MB; md5 `2d68aabf…`. mtd5 no longer reliably holds a copy — see the fpgautil recipe)
 - `bitstreams/`, `projects/` — intended for later FPGA work
-- `img/`, `*.pdf`, `e4205.pcb` — board photos and Altium schematics for the main + V1.1 + V2.0 expansion + OV5640 + VGA-UART boards
+- `img/` — board photos (gitignored)
+- `references/` — vendor material, gitignored: schematic PDFs for the main (`4205.pdf`) + V1.1 + V2.0 expansion + OV5640 + VGA-UART boards, the Altium `e4205.pcb`, and the seller's `13_Ethernet/` Vivado project
+- `tmp/`, `hd_visual/`, `.Xil/`, `vivado*.jou|log` — scratch and Vivado run noise (gitignored)
 - `.env/` — local Python 3.12 venv with `pyserial`, `pyftdi`, `pyusb`, `construct`. **It is a directory, not a dotenv file.**
